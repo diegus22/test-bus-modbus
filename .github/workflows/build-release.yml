@@ -1,0 +1,81 @@
+name: Build & Release Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build .exe with PyInstaller
+        run: |
+          pyinstaller --onefile --windowed --icon=aviot.ico --name=Test_Bus_Aviot `
+            --add-data "logo_aviot.png;." `
+            test_bus_aviot.py
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+
+      - name: Build Installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: List artifacts
+        run: |
+          dir dist
+          dir Output
+
+      - name: Upload .exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Test_Bus_Aviot-exe
+          path: dist/Test_Bus_Aviot.exe
+
+      - name: Upload Installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Instalador_Test_Bus_Aviot
+          path: Output/Instalador_Test_Bus_Aviot.exe
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Test de Bus Modbus Aviot ${{ github.ref_name }}
+          body: |
+            ## Test de Bus Modbus Aviot ${{ github.ref_name }}
+
+            App de diagnóstico para escanear el bus RS485 buscando todas las sondas
+            Modbus conectadas. Detecta sondas, lee temp/humedad, alerta sobre
+            colisiones de ID y errores de bus.
+
+            ### Descarga
+
+            - **`Instalador_Test_Bus_Aviot.exe`** — instalador Windows recomendado
+            - **`Test_Bus_Aviot.exe`** — ejecutable directo (sin instalador)
+
+            ### Cambios en esta versión
+
+            - Versión inicial. Escaneo visual del bus, detección de colisiones,
+              tabla de resultados con códigos de color.
+          files: |
+            dist/Test_Bus_Aviot.exe
+            Output/Instalador_Test_Bus_Aviot.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
